@@ -18,19 +18,17 @@ def fetch_and_update_assets():
             symbol = asset['symbol'] 
             asset_id = asset['id']
             
-            print(f"🔄 {symbol} için veriler çekiliyor...")
+            print(f" {symbol} için veriler çekiliyor...")
             ticker = yf.Ticker(symbol)
             fast_info = ticker.fast_info
             
-            # Yahoo Finance'den temel verileri alıyoruz
-            current_price = fast_info['last_price']
-            # Değişim oranını hesaplayalım (yfinance üzerinden)
-            prev_close = fast_info['previous_close']
-            change_24h = ((current_price - prev_close) / prev_close) * 100 if prev_close else 0
-            volume = fast_info['last_volume']
+            # Yahoo Finance'den verileri alıyoruz
+            current_price = fast_info['last_price']     #anlık fiyat
+            prev_close = fast_info['previous_close']    # dünün son kapanış fiyatı
+            change_24h = ((current_price - prev_close) / prev_close) * 100 if prev_close else 0 #günlük artış/azalış % oranı veriyor bu formül
+            volume = fast_info['last_volume']           #ne kadar el değiştirdiği
 
-            # 1. ADIM: price_history tablosuna detaylı kayıt atıyoruz
-            # Senin tablonda 'stock_symbol' ve 'price' sütunları var, onları besliyoruz
+            # supabase deki tabloma verileri işliyoruz
             db.get_client().table("price_history").insert({
                 "asset_id": asset_id,
                 "stock_symbol": symbol,
@@ -38,9 +36,9 @@ def fetch_and_update_assets():
                 "change_24h": change_24h,
                 "volume": volume,
                 "timestamp": datetime.now().isoformat()
-            }).execute()
+            }).execute()    # execute dendiğinde bu JSON bir HTTP POST isteği olarak Supabase'in PostgREST arayüzüne gidiyor.
 
-            print(f"✅ {symbol} geçmiş tablosuna eklendi: {current_price:.2f} TL")
+            print(f" {symbol} geçmiş tablosuna eklendi: {current_price:.2f} TL")
 
         print("\n Veri çekme ve senkronizasyon işlemi başarıyla tamamlandı!")
 
