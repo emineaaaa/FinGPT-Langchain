@@ -1,6 +1,13 @@
+import os
+import sys
 import yfinance as yf
-from core.database import db
 from datetime import datetime
+
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
+from core.database import db
+
+
 
 def fetch_and_update_assets():
     try:
@@ -38,6 +45,8 @@ def fetch_and_update_assets():
                 "timestamp": datetime.now().isoformat()
             }).execute()    # execute dendiğinde bu JSON bir HTTP POST isteği olarak Supabase'in PostgREST arayüzüne gidiyor.
 
+           
+
             print(f" {symbol} geçmiş tablosuna eklendi: {current_price:.2f} TL")
 
         print("\n Veri çekme ve senkronizasyon işlemi başarıyla tamamlandı!")
@@ -45,5 +54,19 @@ def fetch_and_update_assets():
     except Exception as e:
         print(f"Hata: {e}")
 
+
+def cleanup_old_data():
+    # 15 gün öncesi
+    cutoff_date = (datetime.now() - timedelta(days=15)).isoformat()
+    
+    # price_history tablosunda bu tarihten eski olan her şeyi sil
+    db.get_client().table("price_history")\
+        .delete()\
+        .lt("timestamp", cutoff_date)\
+        .execute()
+    print(f"15 günden eski veriler temizlendi.")
+
+    
 if __name__ == "__main__":
     fetch_and_update_assets()
+
