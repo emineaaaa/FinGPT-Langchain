@@ -3,7 +3,7 @@ from core.config import settings
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_openai import ChatOpenAI
 
-def get_gemini_model(model_name="gemini-1.5-flash", temperature=0.6):
+def get_gemini_model(model_name="gemini-2.5-flash", temperature=0.6):
     return ChatGoogleGenerativeAI(
         model=model_name,
         temperature=temperature,
