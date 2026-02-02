@@ -22,6 +22,8 @@ def analyze_stock_performance(symbol):
 
     if not prices:
         return f"{symbol} için analiz edilecek veri bulunamadı."
+    
+    asset_id = prices[0]['asset_id']
 
     messages = [
         SystemMessage(content="""
@@ -36,12 +38,23 @@ def analyze_stock_performance(symbol):
     
 
     ai_response = llm.invoke(messages)      #gemşnşye verdim cevap oluşturtmak için
-    return ai_response.content              #uzun cevabın analiz metninin alıyoruz
+    return asset_id, ai_response.content     #uzun cevabın analiz metninin alıyoruz
+
+
 
 if __name__ == "__main__":
     # test
     hisse="THYAO.IS"
-    rapor = analyze_stock_performance(hisse)
+    asset_id, rapor = analyze_stock_performance(hisse)
+
     
     print(f"GEMINI'NIN CEVABI ({hisse}):")
     print(rapor)
+
+    db.insert_insight(
+            asset_id=asset_id,
+            symbol=hisse,
+            summary=rapor[:200], #ilk 200 karakter 
+            technical_view=rapor
+        )
+    
