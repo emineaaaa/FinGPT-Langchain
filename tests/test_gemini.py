@@ -1,73 +1,80 @@
-import os
-import sys
-from dotenv import load_dotenv
+import pytest # Profesyonel testler için genellikle bu kullanılır
 
-
-# klasörünü göremez. Bu satır Python'a "ana klasöre bakmayı unutma" der.
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-
-from core.database import db
-from core.config import settings
-from core.llm import get_gemini_model
-
-from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain.prompts import ChatPromptTemplate
-
-load_dotenv()
-
-def test_full_flow():
-    print("🚀 FinGPT Test Sistemi Başlatılıyor...")
-    
-    # --- ADIM 1: Gemini'yi Hazırla ---
-    # settings nesnesinden API anahtarını otomatik alır.
-    
+# 1. Aşama: Veritabanı Testi
+def test_supabase_connection():
     try:
-        llm =get_gemini_model
-        print("Gemini bağlantısı hazır.")
+        client = db.get_client()
+        # Sadece bağlantı ve tablo varlığı kontrolü
+        response = client.table("Stocks").select("count", count="exact").limit(1).execute()
+        print("✅ DB Bağlantısı ve Tablo Erişimi OK.")
+        return True
     except Exception as e:
-        print(f" Gemini başlatılamadı: {e}")
+        print(f"❌ DB Hatası: {e}")
+        return False
+
+# 2. Aşama: Model Testi
+def test_llm_response():
+    try:
+        model = get_gemini_model() # Parantezlere dikkat!
+        res = model.invoke("Selam, nasılsın?")
+        print("✅ LLM Cevap Veriyor.")
+        return True
+    except Exception as e:
+        print(f"❌ LLM Hatası: {e}")
+        return False
+
+# 3. Aşama: Akış Testi (Senin yazdığın kısım)
+def run_full_integration_test():
+    if test_supabase_connection() and test_llm_response():
+        print("🚀 Tüm sistemler hazır, entegrasyon testi başlıyor...")
+
+def run_full_integration_test():
+    print("\n🔗 Entegrasyon Testi Başlatılıyor...")
+    
+    # 1. Kontrol: Bağlantılar sağlam mı?
+    if not (test_supabase_connection() and test_llm_response()):
+        print("❌ Ön testler başarısız. Entegrasyon testi iptal edildi.")
         return
 
     try:
-        print(f" '{settings.PROJECT_NAME}' projesi için veriler çekiliyor...")
-        
-        # 'Stocks' senin Supabase'deki tablo adın. Değişikse burayı güncelle!
-        response = db.get_client().table("Stocks").select("*").limit(3).execute()
+        # --- ADIM 1: Veri Çekme (Data Fetching) ---
+        print("📥 Supabase'den güncel veriler alınıyor...")
+        client = db.get_client()
+        response = client.table("Stocks").select("*").limit(3).execute()
         raw_data = response.data
-        
-        if not raw_data:
-            print("⚠️ Uyarı: Supabase bağlandı ama 'Stocks' tablosu boş gözüküyor!")
-            return
-        
-        print(f"✅ Veri çekme başarılı. Gelen kayıt sayısı: {len(raw_data)}")
-    except Exception as e:
-        print(f"❌ Supabase hatası: {e}")
-        return
 
-    # --- ADIM 3: Gemini ve Veriyi Birleştir (LangChain Zinciri) ---
-    try:
-        print("🧠 Gemini veriyi senin için yorumluyor...")
+        if not raw_data:
+            print("⚠️ Veri yok! Test sonlandırıldı.")
+            return
+
+        # --- ADIM 2: Prompt ve Zincir Yapılandırması ---
+        print("🧠 LangChain zinciri kuruluyor...")
+        model = get_gemini_model() # Fonksiyonu çağırıp nesneyi alıyoruz
         
         prompt = ChatPromptTemplate.from_template(
-            "Sen FinGPT asistanısın. Şu an elimizde şu veriler var: {data}. "
-            "Bu verilere dayanarak, sanki bir borsa kanalında yorum yapıyormuşsun gibi "
-            "kısa, esprili ve teknik bir analiz yap."
+            "Sen FinGPT asistanısın. Elindeki veriler: {data}. "
+            "Bu verileri kullanarak profesyonel ama esprili bir piyasa özeti yap."
         )
         
-        # Meşhur Zincirleme (Pipe) Operatörü
-        chain = prompt | llm
-        
-        # Çalıştır ve sonucu al
-        result = chain.invoke({"data": str(raw_data)})
-        
-        print("\n" + "="*30)
-        print("📊 FINGPT ANALİZ SONUCU:")
-        print("="*30)
-        print(result.content)
-        print("="*30 + "\n")
-        
-    except Exception as e:
-        print(f"❌ Analiz sırasında hata oluştu: {e}")
+        # Zinciri oluştur (Pipe Operatörü)
+        chain = prompt | model
 
+        # --- ADIM 3: Çalıştırma ve Sonuç ---
+        print("⚡ Analiz gerçekleştiriliyor...")
+        result = chain.invoke({"data": str(raw_data)})
+
+        # --- ADIM 4: Çıktı Doğrulama ---
+        if result and result.content:
+            print("\n" + "⭐" * 40)
+            print("📊 FINGPT ENTEGRASYON BAŞARILI!")
+            print("Çıktı Özeti:", result.content[:100], "...") # İlk 100 karakter
+            print("⭐" * 40)
+        else:
+            print("⚠️ Modelden boş yanıt döndü!")
+
+    except Exception as e:
+        print(f"💥 Entegrasyon sırasında beklenmedik hata: {e}")
+
+# Dosyanın en altında çalıştırma bloğu
 if __name__ == "__main__":
-    test_full_flow()
+    run_full_integration_test()
