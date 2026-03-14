@@ -3,12 +3,14 @@ from core.config import settings
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_openai import ChatOpenAI
 
+
 def get_gemini_model(model_name="gemini-2.5-flash", temperature=0.6):
     return ChatGoogleGenerativeAI(
         model=model_name,
         temperature=temperature,
-        google_api_key=settings.GOOGLE_API_KEY 
-
+        google_api_key=settings.GOOGLE_API_KEY,
+        transport="rest", # transport="rest" eklemek gRPC yerine standart HTTP kullanmasını sağlar.
+        max_retries=1
     )
 
 def get_openai_model(model_name, temperature):
