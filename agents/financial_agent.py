@@ -7,7 +7,9 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from core.database import db
 from core.llm import get_gemini_model 
 from langchain_core.messages import SystemMessage, HumanMessage 
+from core.indicators import calculate_indicators
 from datetime import datetime, timedelta
+
 def analyze_stock_performance(symbol):    
 
     llm = get_gemini_model(temperature=0.2) 
@@ -17,30 +19,40 @@ def analyze_stock_performance(symbol):
         .select("*")\
         .eq("stock_symbol", symbol)\
         .order("timestamp", desc=True)\
-        .limit(5)\
+        .limit(30)\
         .execute()
     
     prices = response.data#dict listesi haline getirdik cevapları
 
-    if not prices:
-        return f"{symbol} için analiz edilecek veri bulunamadı."
+    if not prices or len(prices) < 20:
+        return None, {"error": f"{symbol} için yeterli teknik veri (min 20) bulunamadı."}
     
     asset_id = prices[0]['asset_id']
 
+    #saf Pandas motorumuzu çalıştırıyoruz
+    tech_data = calculate_indicators(prices)
+
     system_prompt = """
-    Sen bir finansal analiz robotusun. Sana verilen verileri analiz edip SADECE JSON formatında yanıt vermelisin.
-    Yanıtın şu anahtarları içermelidir:
-    - "summary": Hissenin genel durumu hakkında 1-2 cümlelik çok kısa özet.
-    - "technical_view": Detaylı teknik analiz yorumu.
+    Sen profesyonel bir finansal analiz robotusun. Sana verilen teknik göstergeleri yorumla.
+    Yanıtın SADECE JSON formatında olmalı:
+    - "summary": Kısa özet (Örn: RSI aşırı satımda, tepki gelebilir).
+    - "technical_view": RSI, SMA ve fiyat trendine dayalı detaylı yorum.
     - "signal": "BUY", "SELL" veya "HOLD" değerlerinden biri.
     - "risk_score": 1 ile 5 arasında bir tam sayı.
+    """
 
-    JSON dışında hiçbir açıklama metni yazma.
+    user_content = f"""
+    Hisse: {symbol}
+    Güncel Fiyat: {tech_data['current_price']}
+    RSI (14): {tech_data['rsi']}
+    SMA (20): {tech_data['sma_20']}
+    Genel Trend: {tech_data['trend']}
+    Son Fiyat Geçmişi (Referans): {prices[:5]}
     """
 
     messages = [
         SystemMessage(content=system_prompt),
-        HumanMessage(content=f"{symbol} verileri: {prices}")
+        HumanMessage(content=user_content)
     ]
 
     print(f"Gemini {symbol} için analiz raporu hazırlıyor...")
@@ -100,4 +112,3 @@ if __name__ == "__main__":
         print(f"\n SONUÇ ({hisse}):")
         print(f"Özet: {sonuc.get('summary')}")
         print(f"Sinyal: {sonuc.get('signal', 'N/A')}") # Sinyal DB sütununda yoksa N/A yazar
-    
